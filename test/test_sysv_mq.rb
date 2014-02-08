@@ -84,6 +84,14 @@ class SysVMQTest < MiniTest::Unit::TestCase
     end
   end
 
+  def test_allow_multiple_queues_with_different_sizes
+    @mq.send("B" * @mq.size)
+
+    mq2 = SysVMQ.new(0xDEADCAFE, size: 128)
+    mq2.send("B" * mq2.size)
+    mq2.destroy
+  end
+
   # def test_sends_and_receives_empty_message
   #   @mq.send("")
   #   assert_equal "", @mq.receive

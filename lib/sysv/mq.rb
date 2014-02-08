@@ -86,13 +86,13 @@ class SysVMQ
     @size = size
 
     # This struct changes depending on the size passed in. We must allocate this
-    # size for the struct, so we ghetto-pass it.
-    Buffer.class_eval do
+    # size for the struct, so we create an anonymous one for this purpose.
+    @buffer_klass = Class.new(FFI::Struct) {
       layout mtype: :long,
              mtext: [:uint8, size + 1] # +1 for null byte
-    end
+    }
 
-    @buffer = Buffer.new
+    @buffer = @buffer_klass.new
   end
 
   def receive(type: 0, flags: 0)
