@@ -246,10 +246,23 @@ sysvmq_initialize(VALUE self, VALUE key, VALUE buffer_size, VALUE flags)
 
 void Init_sysvmq()
 {
+  VALUE sysvmq = rb_define_class("SysVMQ", rb_cObject);
+
+  // Waiting between blocking calls that have been interrupted outside the GVL,
+  // this is to allow time for signal handlers to process signals.
   polling_interval.tv_sec  = 0;
   polling_interval.tv_usec = 5;
 
-  VALUE sysvmq   = rb_define_class("SysVMQ", rb_cObject);
+  // Define platform specific constants from headers
+  rb_define_const(sysvmq, "IPC_CREAT",  INT2NUM(IPC_CREAT));
+  rb_define_const(sysvmq, "IPC_EXCL",   INT2NUM(IPC_EXCL));
+  rb_define_const(sysvmq, "IPC_NOWAIT", INT2NUM(IPC_NOWAIT));
+  rb_define_const(sysvmq, "IPC_RMID",   INT2NUM(IPC_RMID));
+  rb_define_const(sysvmq, "IPC_SET",    INT2NUM(IPC_SET));
+  rb_define_const(sysvmq, "IPC_STAT",   INT2NUM(IPC_STAT));
+  rb_define_const(sysvmq, "IPC_INFO",   INT2NUM(IPC_INFO));
+
+  // Define the SysVMQ class and its methods
   rb_define_alloc_func(sysvmq, sysvmq_alloc);
   rb_define_method(sysvmq, "initialize", sysvmq_initialize, 3);
   rb_define_method(sysvmq, "send", sysvmq_send, 3);
