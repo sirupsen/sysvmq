@@ -73,8 +73,52 @@ sysvmq_alloc(VALUE klass)
   return obj;
 }
 
+// int msgctl(int msqid, int cmd, struct msqid_ds *buf);
+// http://man7.org/linux/man-pages/man2/msgctl.2.html
+//
+// Controls the queue with IPC_SET, IPC_INFO and IPC_RMID
+static VALUE
+sysvmq_stats(VALUE self, VALUE cmd)
+{
+  struct msqid_ds info;
+  VALUE info_hash;
+  sysvmq_t* sysv;
+  TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
+
+  // TODO: Does FIX2INT actually perform this check already?
+  Check_Type(cmd, T_FIXNUM);
+
+  while (msgctl(sysv->id, IPC_STAT, &info) < 0) {
+    if (errno == EINTR) {
+      rb_thread_wait_for(polling_interval);
+      continue;
+    }
+    rb_sys_fail("Failed executing msgctl(2) command.");
+  }
+
+  // Map values from struct to a hash
+  // TODO: Number of bytes, platform specific and not guaranteed on Darwin. Test
+  // it on BSD with that.
+  // TODO: Add all the fields
+  // TODO: They are probably not ints..
+  info_hash = rb_hash_new();
+  rb_hash_aset(info_hash, ID2SYM(rb_intern("count")),         INT2FIX(info.msg_qnum));
+  rb_hash_aset(info_hash, ID2SYM(rb_intern("maximum_bytes")), INT2FIX(info.msg_qbytes)); 
+
+  // TODO: Can probably make a better checker here for whether the struct
+  // actually has the member.
+#ifdef __linux__
+  rb_hash_aset(info_hash, ID2SYM(rb_intern("bytes")), INT2FIX(info.__msg_cbytes));
+#elif __APPLE__
+  rb_hash_aset(info_hash, ID2SYM(rb_intern("bytes")), INT2FIX(info.msg_cbytes));
+#endif
+
+  return info_hash;
+}
+
+
 // This is used for passing values between the `maybe_blocking` function and the
-// Ruby function.
+// Ruby function. There must be a better way.
 typedef struct {
   int     size;
   int     flags;
@@ -170,10 +214,9 @@ sysvmq_send(VALUE self, VALUE message, VALUE priority, VALUE flags)
 
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
-  // TODO: Support object if responds_to?(:to_s)
-  Check_Type(message, T_STRING);
   Check_Type(flags, T_FIXNUM);
   Check_Type(priority, T_FIXNUM);
+  message = rb_any_to_s(message);
 
   // Attach blocking call parameters to the struct passed to the blocking
   // function wrapper.
@@ -265,6 +308,7 @@ void Init_sysvmq()
   // Define the SysVMQ class and its methods
   rb_define_alloc_func(sysvmq, sysvmq_alloc);
   rb_define_method(sysvmq, "initialize", sysvmq_initialize, 3);
-  rb_define_method(sysvmq, "send", sysvmq_send, 3);
-  rb_define_method(sysvmq, "receive", sysvmq_receive, 2);
+  rb_define_method(sysvmq, "send",       sysvmq_send,    3);
+  rb_define_method(sysvmq, "receive",    sysvmq_receive, 2);
+  rb_define_method(sysvmq, "stats",      sysvmq_stats,   1);
 }
