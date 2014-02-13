@@ -1,0 +1,257 @@
+#include <ruby.h>
+#include <ruby/util.h>
+#include <ruby/thread.h>
+#include <ruby/io.h>
+
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
+#include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
+
+typedef struct {
+  long mtype;
+  char mtext[];
+} 
+sysvmq_msgbuf_t;
+
+
+struct timeval polling_interval;
+
+typedef struct {
+  key_t             key;
+  int               id;
+  size_t            buffer_size;
+  sysvmq_msgbuf_t*  msgbuf;
+}
+sysvmq_t;
+
+static void
+sysvmq_mark(void *ptr)
+{
+  // noop, no Ruby objects in the internal struct currently
+}
+
+static void
+sysvmq_free(void *ptr)
+{
+  sysvmq_t* sysv = ptr;
+  xfree(sysv->msgbuf);
+  xfree(sysv);
+}
+
+static size_t
+sysvmq_memsize(const void* ptr)
+{
+  const sysvmq_t* sysv = ptr;
+  return sizeof(sysvmq_t) + sizeof(char) * sysv->buffer_size;
+}
+
+static const rb_data_type_t
+sysvmq_type = {
+  "sysvmq_type",
+  {
+    sysvmq_mark,
+    sysvmq_free,
+    sysvmq_memsize
+  }
+};
+
+static VALUE
+sysvmq_alloc(VALUE klass)
+{
+  sysvmq_t* sysv;
+  VALUE obj = TypedData_Make_Struct(klass, sysvmq_t, &sysvmq_type, sysv);
+
+  sysv->key         = 0;
+  sysv->id          = -1;
+  sysv->buffer_size = 0;
+  sysv->msgbuf      = NULL;
+
+  return obj;
+}
+
+// This is used for passing values between the `maybe_blocking` function and the
+// Ruby function.
+typedef struct {
+  int     size;
+  int     flags;
+  int     type;
+  int     msg_size; // TODO: typelol
+  VALUE*  self;
+} 
+sysvmq_blocking_call_t;
+
+// Blocking call to msgsnd(2) (see sysvmq_send). This is to be called without
+// the GVL, and must therefore not use any Ruby functions.
+static void*
+sysvmq_maybe_blocking_receive(void *data)
+{
+  sysvmq_t* sysv;
+  sysvmq_blocking_call_t* arguments = (sysvmq_blocking_call_t*) data;
+  TypedData_Get_Struct(*arguments->self, sysvmq_t, &sysvmq_type, sysv);
+
+  while ((arguments->msg_size = msgrcv(sysv->id, sysv->msgbuf, sysv->buffer_size, arguments->type, arguments->flags)) < 0) {
+    if (errno == EINTR) {
+      rb_thread_wait_for(polling_interval);
+      continue;
+    }
+    rb_sys_fail("Failed receiving message to the message queue.");
+  }
+
+  return NULL;
+}
+
+// ssize_t msgrcv(int msqid, void *msgp, size_t msgsz, long msgtyp, int msgflg);
+// http://man7.org/linux/man-pages/man2/msgsnd.2.html
+//
+// Receive a message from the message queue.
+VALUE
+sysvmq_receive(VALUE self, VALUE type, VALUE flags)
+{
+  sysvmq_t* sysv;
+  sysvmq_blocking_call_t blocking;
+  VALUE message;
+
+  TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
+
+  Check_Type(type, T_FIXNUM);
+  Check_Type(flags, T_FIXNUM);
+
+  // Attach blocking call parameters to the struct passed to the blocking
+  // function wrapper.
+  blocking.flags = FIX2INT(flags);
+  blocking.type  = FIX2INT(type);
+  blocking.self  = &self;
+
+  // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed. 
+  // We unlock the GVL waiting for the call so other threads (e.g. signal
+  // handling) can continue to work. Sets `msg_size` on `blocking` with the size
+  // of the message returned.
+  rb_thread_call_without_gvl2(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL);
+
+  // Reencode as UTF-8 from ASCII
+  message = rb_str_new(sysv->msgbuf->mtext, blocking.msg_size);
+  return rb_funcall(message, rb_intern("force_encoding"), 1, rb_str_new2("utf-8"));
+}
+
+// Blocking call to msgsnd(2) (see sysvmq_send). This is to be called without
+// the GVL, and must therefore not use any Ruby functions.
+static void*
+sysvmq_maybe_blocking_send(void *data)
+{
+  sysvmq_t* sysv;
+  sysvmq_blocking_call_t* arguments = (sysvmq_blocking_call_t*) data;
+
+  TypedData_Get_Struct(*arguments->self, sysvmq_t, &sysvmq_type, sysv);
+
+  while (msgsnd(sysv->id, sysv->msgbuf, arguments->size, arguments->flags) < 0) {
+    if (errno == EINTR) {
+      rb_thread_wait_for(polling_interval);
+      continue;
+    }
+    rb_sys_fail("Failed sending message to the message queue.");
+  }
+
+  return NULL;
+}
+
+// int msgsnd(int msqid, const void *msgp, size_t msgsz, int msgflg);
+// http://man7.org/linux/man-pages/man2/msgsnd.2.html
+//
+// Sends a message to the message queue.
+VALUE
+sysvmq_send(VALUE self, VALUE message, VALUE priority, VALUE flags)
+{
+  sysvmq_blocking_call_t blocking;
+  sysvmq_t* sysv;
+
+  TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
+
+  // TODO: Support object if responds_to?(:to_s)
+  Check_Type(message, T_STRING);
+  Check_Type(flags, T_FIXNUM);
+  Check_Type(priority, T_FIXNUM);
+
+  // Attach blocking call parameters to the struct passed to the blocking
+  // function wrapper.
+  blocking.flags = FIX2INT(flags);
+  blocking.size  = RSTRING_LEN(message);
+  blocking.self  = &self;
+
+  // The buffer can be obtained from `sysvmq_maybe_blocking_send`, instead of
+  // passing it, set it directly on the instance struct.
+  sysv->msgbuf->mtype = FIX2INT(priority);
+
+  // TODO: Can a string copy be avoided?
+  strncpy(sysv->msgbuf->mtext, StringValueCStr(message), blocking.size);
+
+  // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed. 
+  // We unlock the GVL waiting for the call so other threads (e.g. signal
+  // handling) can continue to work.
+  rb_thread_call_without_gvl(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL);
+
+  return message;
+}
+
+// int msgget(key_t key, int msgflg);
+// http://man7.org/linux/man-pages/man2/msgget.2.html
+//
+// Instead of calling `msgget` method directly to get the `msgid` (the return
+// value of `msgget`) from Rubyland and pass it around, it's stored internally
+// in a struct only directly accessible from C-land. It's passed to all the
+// other calls that require a `msgid`, for convienence and to share the buffer.
+VALUE
+sysvmq_initialize(VALUE self, VALUE key, VALUE buffer_size, VALUE flags)
+{
+  sysvmq_t* sysv;
+  size_t msgbuf_size;
+
+  // TODO: Also support string keys, so you can pass '0xDEADC0DE'
+  Check_Type(key,   T_FIXNUM);
+  Check_Type(flags, T_FIXNUM);
+  Check_Type(buffer_size, T_FIXNUM);
+
+  TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
+
+  // TODO: This probably doesn't hold on all platforms.
+  sysv->key = FIX2LONG(key);
+
+  while ((sysv->id = msgget(sysv->key, FIX2INT(flags))) < 0) {
+    if (errno == EINTR) {
+      rb_thread_wait_for(polling_interval); // TODO: Really necessary here?
+      continue;
+    }
+    rb_sys_fail("Failed opening the message queue.");
+  }
+
+  // Allocate the msgbuf buffer once for the instance, to not allocate a buffer
+  // for each message sent. This makes SysVMQ not thread-safe (requiring a
+  // buffer for each thread), but is a reasonable trade-off for now for the
+  // performance.
+  sysv->buffer_size = FIX2INT(buffer_size);
+  msgbuf_size = sysv->buffer_size * sizeof(char) + sizeof(long);
+
+  // Note that this is a zero-length array, so we size the struct to size of the
+  // header (long, the mtype) and then the rest of the space for message buffer.
+  sysv->msgbuf = (sysvmq_msgbuf_t*) malloc(msgbuf_size);
+  if (sysv->msgbuf == NULL) {
+    rb_syserr_new(ENOMEM, "Ran out of memory allocating message buffer");
+  }
+
+  return self;
+}
+
+void Init_sysvmq()
+{
+  polling_interval.tv_sec  = 0;
+  polling_interval.tv_usec = 5;
+
+  VALUE sysvmq   = rb_define_class("SysVMQ", rb_cObject);
+  rb_define_alloc_func(sysvmq, sysvmq_alloc);
+  rb_define_method(sysvmq, "initialize", sysvmq_initialize, 3);
+  rb_define_method(sysvmq, "send", sysvmq_send, 3);
+  rb_define_method(sysvmq, "receive", sysvmq_receive, 2);
+}
