@@ -78,17 +78,32 @@ sysvmq_alloc(VALUE klass)
 //
 // Controls the queue with IPC_SET, IPC_INFO and IPC_RMID
 static VALUE
-sysvmq_stats(VALUE self, VALUE cmd)
+sysvmq_stats(int argc, VALUE *argv, VALUE self)
 {
   struct msqid_ds info;
   VALUE info_hash;
+  VALUE cmd;
   sysvmq_t* sysv;
+
+  // Optional argument handling
+  if (argc > 1) {
+    rb_raise(rb_eArgError, "Wrong number of arguments (0..1)");
+  }
+
+  if (argc == 1) 
+    cmd = argv[0];
+
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
+
+  // Default to IPC_STAT
+  if (cmd == Qnil) {
+    cmd = INT2FIX(IPC_STAT);
+  }
 
   // TODO: Does FIX2INT actually perform this check already?
   Check_Type(cmd, T_FIXNUM);
 
-  while (msgctl(sysv->id, IPC_STAT, &info) < 0) {
+  while (msgctl(sysv->id, FIX2INT(cmd), &info) < 0) {
     if (errno == EINTR) {
       rb_thread_wait_for(polling_interval);
       continue;
@@ -114,6 +129,14 @@ sysvmq_stats(VALUE self, VALUE cmd)
 #endif
 
   return info_hash;
+}
+
+static VALUE
+sysvmq_destroy(VALUE self)
+{
+  VALUE argv[1];
+  argv[0] = INT2FIX(IPC_RMID);
+  return sysvmq_stats(1, argv, self);
 }
 
 
@@ -310,5 +333,6 @@ void Init_sysvmq()
   rb_define_method(sysvmq, "initialize", sysvmq_initialize, 3);
   rb_define_method(sysvmq, "send",       sysvmq_send,    3);
   rb_define_method(sysvmq, "receive",    sysvmq_receive, 2);
-  rb_define_method(sysvmq, "stats",      sysvmq_stats,   1);
+  rb_define_method(sysvmq, "stats",      sysvmq_stats,   -1);
+  rb_define_method(sysvmq, "destroy",    sysvmq_destroy, 0);
 }
