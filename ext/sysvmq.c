@@ -76,7 +76,11 @@ sysvmq_alloc(VALUE klass)
 // int msgctl(int msqid, int cmd, struct msqid_ds *buf);
 // http://man7.org/linux/man-pages/man2/msgctl.2.html
 //
-// Controls the queue with IPC_SET, IPC_INFO and IPC_RMID
+// Controls the queue with IPC_SET, IPC_INFO and IPC_RMID via msgctl(2). When no
+// argument is passed, it'll return the information about the queue from
+// IPC_INFO. 
+//
+// TODO: IPC_SET is currently not supported.
 static VALUE
 sysvmq_stats(int argc, VALUE *argv, VALUE self)
 {
@@ -112,8 +116,6 @@ sysvmq_stats(int argc, VALUE *argv, VALUE self)
   }
 
   // Map values from struct to a hash
-  // TODO: Number of bytes, platform specific and not guaranteed on Darwin. Test
-  // it on BSD with that.
   // TODO: Add all the fields
   // TODO: They are probably not ints..
   info_hash = rb_hash_new();
@@ -131,6 +133,7 @@ sysvmq_stats(int argc, VALUE *argv, VALUE self)
   return info_hash;
 }
 
+// Proxies a call with IPC_RMID to `sysvmq_stats` to remove the queue.
 static VALUE
 sysvmq_destroy(VALUE self)
 {
