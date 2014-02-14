@@ -318,10 +318,7 @@ sysvmq_initialize(VALUE self, VALUE key, VALUE buffer_size, VALUE flags)
 
   // Note that this is a zero-length array, so we size the struct to size of the
   // header (long, the mtype) and then the rest of the space for message buffer.
-  sysv->msgbuf = (sysvmq_msgbuf_t*) malloc(msgbuf_size);
-  if (sysv->msgbuf == NULL) {
-    rb_syserr_new(ENOMEM, "Ran out of memory allocating message buffer");
-  }
+  sysv->msgbuf = (sysvmq_msgbuf_t*) xmalloc(msgbuf_size);
 
   return self;
 }
