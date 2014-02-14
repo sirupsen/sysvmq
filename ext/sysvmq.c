@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
 // This is the buffer passed to msg{rcv,snd,ctl}(2)
 typedef struct {
@@ -70,7 +71,7 @@ sysvmq_alloc(VALUE klass)
   sysv->key         = 0;
   sysv->id          = -1;
   sysv->buffer_size = 0;
-  sysv->msgbuf      = NULL;
+  sysv->msgbuf      = memset(sysv, 0, sizeof(sysvmq_t));
 
   return obj;
 }
@@ -143,10 +144,10 @@ sysvmq_destroy(VALUE self)
 // This is used for passing values between the `maybe_blocking` function and the
 // Ruby function. There's definitely a better way.
 typedef struct {
-  int        size;
+  size_t     size;
   int        flags;
   int        type;
-  int        msg_size; // TODO: typelol
+  size_t     msg_size; // TODO: typelol
   sysvmq_t*  sysv;
 
   int        retval;
@@ -171,7 +172,8 @@ sysvmq_maybe_blocking_receive(void *args)
 VALUE
 sysvmq_receive(int argc, VALUE *argv, VALUE self)
 {
-  VALUE type, flags;
+  VALUE type  = INT2FIX(0);
+  VALUE flags = INT2FIX(0);
   sysvmq_t* sysv;
   sysvmq_blocking_call_t blocking;
 
@@ -179,8 +181,8 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
     rb_raise(rb_eArgError, "Wrong number of arguments (0..2)");
   }
 
-  type  = argc >= 1 ? argv[0] : INT2FIX(0);
-  flags = argc == 2 ? argv[1] : INT2FIX(0);
+  if (argc >= 1) type  = argv[0];
+  if (argc == 2) flags = argv[1];
 
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
@@ -230,7 +232,9 @@ sysvmq_maybe_blocking_send(void *data)
 VALUE
 sysvmq_send(int argc, VALUE *argv, VALUE self)
 {
-  VALUE message, priority, flags;
+  VALUE message;
+  VALUE priority = INT2FIX(1);
+  VALUE flags = INT2FIX(0);
   sysvmq_blocking_call_t blocking;
   sysvmq_t* sysv;
 
@@ -239,8 +243,8 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   }
 
   message  = argv[0];
-  priority = argc >= 2 ? argv[1] : INT2FIX(1);
-  flags    = argc == 3 ? argv[2] : INT2FIX(0);
+  if (argc >= 2) priority = argv[1];
+  if (argc == 3) flags    = argv[2];
 
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
@@ -257,6 +261,10 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   // The buffer can be obtained from `sysvmq_maybe_blocking_send`, instead of
   // passing it, set it directly on the instance struct.
   sysv->msgbuf->mtype = FIX2INT(priority);
+
+  if (blocking.size > sysv->buffer_size) {
+    rb_raise(rb_eArgError, "Size of message is bigger than buffer size.");
+  }
 
   // TODO: Can a string copy be avoided?
   strncpy(sysv->msgbuf->mtext, StringValueCStr(message), blocking.size);
