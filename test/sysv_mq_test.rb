@@ -77,4 +77,28 @@ class SysVMQTest < MiniTest::Unit::TestCase
     assert_equal "5", @mq.receive(-7)
     assert_equal "10", @mq.receive(-10)
   end
+
+  def test_responds_to_sigint
+    pid = fork { 
+      begin
+        mq = SysVMQ.new(0xDEADCAFE, 2048, SysVMQ::IPC_CREAT | 0660)
+        mq.receive
+      rescue Interrupt
+        mq.destroy
+      end
+    }
+    sleep 0.01
+    Process.kill(:SIGINT, pid)
+    Process.wait(pid)
+  end
+
+  def test_kills_thread_cleanly
+    thread = Thread.new {
+      mq = SysVMQ.new(0xDEADCAFE, 2048, SysVMQ::IPC_CREAT | 0660)
+      mq.receive
+    }
+
+    sleep 0.01
+    thread.kill
+  end
 end
