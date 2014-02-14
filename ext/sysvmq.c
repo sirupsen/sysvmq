@@ -97,7 +97,7 @@ sysvmq_stats(int argc, VALUE *argv, VALUE self)
   }
 
   // Default to IPC_STAT
-  cmd == argc == 1 ? argv[0] : INT2FIX(IPC_STAT);
+  cmd = argc == 1 ? argv[0] : INT2FIX(IPC_STAT);
 
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
@@ -178,7 +178,7 @@ sysvmq_maybe_blocking_receive(void *data)
 VALUE
 sysvmq_receive(int argc, VALUE *argv, VALUE self)
 {
-  VALUE type, flags, message;
+  VALUE type, flags;
   sysvmq_t* sysv;
   sysvmq_blocking_call_t blocking;
 
@@ -206,9 +206,8 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
   // of the message returned.
   rb_thread_call_without_gvl2(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL);
 
-  // Reencode as UTF-8 from ASCII
-  message = rb_str_new(sysv->msgbuf->mtext, blocking.msg_size);
-  return rb_funcall(message, rb_intern("force_encoding"), 1, rb_str_new2("utf-8"));
+  // Reencode with default external encoding
+  return rb_enc_str_new(sysv->msgbuf->mtext, blocking.msg_size, rb_default_external_encoding());
 }
 
 // Blocking call to msgsnd(2) (see sysvmq_send). This is to be called without
