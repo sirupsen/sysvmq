@@ -11,15 +11,17 @@
 #include <errno.h>
 #include <stdio.h>
 
+// This is the buffer passed to msg{rcv,snd,ctl}(2)
 typedef struct {
   long mtype;
   char mtext[];
 } 
 sysvmq_msgbuf_t;
 
-
+// Used for rb_thread_wait_for to signal time between EINTR tries
 struct timeval polling_interval;
 
+// C struct linked to all Ruby objects
 typedef struct {
   key_t             key;
   int               id;
@@ -95,11 +97,7 @@ sysvmq_stats(int argc, VALUE *argv, VALUE self)
   }
 
   // Default to IPC_STAT
-  if (argc == 1) {
-    cmd = argv[0];
-  } else {
-    cmd = INT2FIX(IPC_STAT);
-  }
+  cmd == argc == 1 ? argv[0] : INT2FIX(IPC_STAT);
 
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
@@ -123,6 +121,7 @@ sysvmq_stats(int argc, VALUE *argv, VALUE self)
 
   // TODO: Can probably make a better checker here for whether the struct
   // actually has the member.
+  // TODO: BSD support?
 #ifdef __linux__
   rb_hash_aset(info_hash, ID2SYM(rb_intern("size")), INT2FIX(info.__msg_cbytes));
 #elif __APPLE__
@@ -141,9 +140,8 @@ sysvmq_destroy(VALUE self)
   return sysvmq_stats(1, argv, self);
 }
 
-
 // This is used for passing values between the `maybe_blocking` function and the
-// Ruby function. There must be a better way.
+// Ruby function. There's definitely a better way.
 typedef struct {
   int     size;
   int     flags;
