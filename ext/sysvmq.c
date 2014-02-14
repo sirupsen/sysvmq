@@ -94,15 +94,14 @@ sysvmq_stats(int argc, VALUE *argv, VALUE self)
     rb_raise(rb_eArgError, "Wrong number of arguments (0..1)");
   }
 
-  if (argc == 1) 
-    cmd = argv[0];
-
-  TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
-
   // Default to IPC_STAT
-  if (cmd == Qnil) {
+  if (argc == 1) {
+    cmd = argv[0];
+  } else {
     cmd = INT2FIX(IPC_STAT);
   }
+
+  TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
   // TODO: Does FIX2INT actually perform this check already?
   Check_Type(cmd, T_FIXNUM);
@@ -120,14 +119,14 @@ sysvmq_stats(int argc, VALUE *argv, VALUE self)
   // TODO: They are probably not ints..
   info_hash = rb_hash_new();
   rb_hash_aset(info_hash, ID2SYM(rb_intern("count")),         INT2FIX(info.msg_qnum));
-  rb_hash_aset(info_hash, ID2SYM(rb_intern("maximum_bytes")), INT2FIX(info.msg_qbytes)); 
+  rb_hash_aset(info_hash, ID2SYM(rb_intern("maximum_size")), INT2FIX(info.msg_qbytes)); 
 
   // TODO: Can probably make a better checker here for whether the struct
   // actually has the member.
 #ifdef __linux__
-  rb_hash_aset(info_hash, ID2SYM(rb_intern("bytes")), INT2FIX(info.__msg_cbytes));
+  rb_hash_aset(info_hash, ID2SYM(rb_intern("size")), INT2FIX(info.__msg_cbytes));
 #elif __APPLE__
-  rb_hash_aset(info_hash, ID2SYM(rb_intern("bytes")), INT2FIX(info.msg_cbytes));
+  rb_hash_aset(info_hash, ID2SYM(rb_intern("size")), INT2FIX(info.msg_cbytes));
 #endif
 
   return info_hash;
@@ -179,11 +178,18 @@ sysvmq_maybe_blocking_receive(void *data)
 //
 // Receive a message from the message queue.
 VALUE
-sysvmq_receive(VALUE self, VALUE type, VALUE flags)
+sysvmq_receive(int argc, VALUE *argv, VALUE self)
 {
+  VALUE type, flags, message;
   sysvmq_t* sysv;
   sysvmq_blocking_call_t blocking;
-  VALUE message;
+
+  if (argc > 2) {
+    rb_raise(rb_eArgError, "Wrong number of arguments (0..2)");
+  }
+
+  type  = argc >= 1 ? argv[0] : INT2FIX(0);
+  flags = argc == 2 ? argv[1] : INT2FIX(0);
 
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
@@ -233,16 +239,25 @@ sysvmq_maybe_blocking_send(void *data)
 //
 // Sends a message to the message queue.
 VALUE
-sysvmq_send(VALUE self, VALUE message, VALUE priority, VALUE flags)
+sysvmq_send(int argc, VALUE *argv, VALUE self)
 {
+  VALUE message, priority, flags;
   sysvmq_blocking_call_t blocking;
   sysvmq_t* sysv;
 
+  if (argc > 3 || argc == 0) {
+    rb_raise(rb_eArgError, "Wrong number of arguments (1..3)");
+  }
+
+  message  = argv[0];
+  priority = argc >= 2 ? argv[1] : INT2FIX(1);
+  flags    = argc == 3 ? argv[2] : INT2FIX(0);
+
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
-  Check_Type(flags, T_FIXNUM);
+  Check_Type(flags,    T_FIXNUM);
   Check_Type(priority, T_FIXNUM);
-  message = rb_any_to_s(message);
+  // TODO: Call to_s on message if it responds to
 
   // Attach blocking call parameters to the struct passed to the blocking
   // function wrapper.
@@ -334,8 +349,8 @@ void Init_sysvmq()
   // Define the SysVMQ class and its methods
   rb_define_alloc_func(sysvmq, sysvmq_alloc);
   rb_define_method(sysvmq, "initialize", sysvmq_initialize, 3);
-  rb_define_method(sysvmq, "send",       sysvmq_send,    3);
-  rb_define_method(sysvmq, "receive",    sysvmq_receive, 2);
+  rb_define_method(sysvmq, "send",       sysvmq_send,    -1);
+  rb_define_method(sysvmq, "receive",    sysvmq_receive, -1);
   rb_define_method(sysvmq, "stats",      sysvmq_stats,   -1);
   rb_define_method(sysvmq, "destroy",    sysvmq_destroy, 0);
 }
