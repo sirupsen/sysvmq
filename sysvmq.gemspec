@@ -4,19 +4,20 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'sysv/mq/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = "sysv-mq"
-  spec.version       = Sysv::Mq::VERSION
+  spec.name          = "sysvmq"
+  spec.version       = '0.0.1'
   spec.authors       = ["Simon Eskildsen"]
   spec.email         = ["sirup@sirupsen.com"]
-  spec.summary       = %q{TODO: Write a short summary. Required.}
-  spec.description   = %q{TODO: Write a longer description. Optional.}
-  spec.homepage      = ""
+  spec.summary       = %q{Ruby wrapper for SysV Message Queues}
+  spec.description   = %q{Ruby wrapper for SysV Message Queues}
+  spec.homepage      = "https://github.com/Sirupsen/sysvmq"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files`.split($/)
   spec.executables   = spec.files.grep(%r{^bin/}) { |f| File.basename(f) }
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
+  spec.extensions    = ["ext/extconf.rb"]
 
   spec.add_dependency "ffi"
 
