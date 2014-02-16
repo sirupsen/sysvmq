@@ -1,7 +1,12 @@
 require "bundler/gem_tasks"
 require 'rake/testtask'
+require 'rake/extensiontask'
 
-task :default => [:test]
+Rake::ExtensionTask.new 'sysvmq' do |ext|
+  ext.ext_dir = 'ext/'
+end
+
+task :default => [:compile, :test]
 
 Rake::TestTask.new do |t|
   t.libs << "test"
