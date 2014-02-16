@@ -1,16 +1,19 @@
 # sysvmq
 
-`sysvmq` is a C extension that wraps SysV IPC Message Queues. 
-
-Currently known to work on:
-
-* Linux (MRI >= 2.0)
+`sysvmq` is a C extension that wraps SysV IPC Message Queues. It's similar to
+the [POSIX MQ Ruby wrapper](https://github.com/Sirupsen/posix-mqueue). Message
+queues are handy for interprocess communication where you want to be able to
+take down either endpoint easily. The main disadvantage of SysV message queues
+over POSIX MQs (on Linux) is that SysV doesn't expose a file descriptor to do
+e.g. `select(2)` on.
 
 ## Installation
 
 Add `sysvm` to your Gemfile.
 
   gem 'sysvmq'
+
+Currently known to work on Linux (MRI >= 2.0).
 
 ## Usage
 
