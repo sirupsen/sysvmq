@@ -1,6 +1,7 @@
 # sysvmq
 
-`sysvmq` is a C extension that wraps SysV IPC Message Queues.
+`sysvmq` is a C extension that wraps SysV IPC Message Queues. Only compatible
+with MRI 2.0 and 2.1 currently.
 
 ```ruby
 # Create a message queue with a 1024 byte buffer.
