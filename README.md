@@ -1,7 +1,18 @@
 # sysvmq
 
-`sysvmq` is a C extension that wraps SysV IPC Message Queues. Only compatible
-with MRI 2.0 and 2.1 currently.
+`sysvmq` is a C extension that wraps SysV IPC Message Queues. 
+
+Currently known to work on:
+
+* Linux (MRI >= 2.0)
+
+## Installation
+
+Add `sysvm` to your Gemfile.
+
+  gem 'sysvmq'
+
+## Usage
 
 ```ruby
 # Create a message queue with a 1024 byte buffer.
@@ -21,6 +32,3 @@ ensure
 mq.destroy
 ```
 
-## Installation
-
-  gem 'sysv-mq', github: "Sirupsen/sysvmq" # until published to rubygems
