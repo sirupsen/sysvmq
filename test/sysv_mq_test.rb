@@ -27,6 +27,16 @@ class SysVMQTest < MiniTest::Unit::TestCase
     assert_equal 2, @mq.stats[:count]
   end
 
+  def test_send_and_receive_many_times
+    many = 100_000
+    message = "Hello World"
+
+    many.times do
+      @mq.send message
+      assert_equal message, @mq.receive
+    end
+  end
+
   def test_sends_and_receives_utf8
     message = "simån hørup"
     @mq.send message
