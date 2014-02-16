@@ -35,3 +35,11 @@ ensure
 mq.destroy
 ```
 
+## Todo
+
+* Explain messages types
+* Add named params for flags (e.g. `mq.receive(:front, blocking: false)`)
+  instead of ORing flags directly.
+* Add `IPC_INFO` on Linux
+* Add all of `IPC_STAT`
+* OS X compatibility
