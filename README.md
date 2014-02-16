@@ -11,7 +11,7 @@ e.g. `select(2)` on.
 
 Add `sysvm` to your Gemfile.
 
-  gem 'sysvmq'
+`gem 'sysvmq'`
 
 Currently known to work on Linux (MRI >= 2.0).
 
