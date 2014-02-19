@@ -144,12 +144,13 @@ sysvmq_destroy(VALUE self)
 // This is used for passing values between the `maybe_blocking` function and the
 // Ruby function. There's definitely a better way.
 typedef struct {
-  ssize_t    retval;
   size_t     size;
   int        flags;
   int        type;
   size_t     msg_size; // TODO: typelol
   sysvmq_t*  sysv;
+
+  int        retval;
 } 
 sysvmq_blocking_call_t;
 
@@ -190,18 +191,18 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
 
   // Attach blocking call parameters to the struct passed to the blocking
   // function wrapper.
-  blocking.flags  = FIX2INT(flags);
-  blocking.type   = FIX2INT(type);
-  blocking.sysv   = sysv;
-  blocking.retval = -8;
+  blocking.flags = FIX2INT(flags);
+  blocking.type  = FIX2INT(type);
+  blocking.sysv  = sysv;
 
   // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed. 
   // We unlock the GVL waiting for the call so other threads (e.g. signal
   // handling) can continue to work. Sets `msg_size` on `blocking` with the size
   // of the message returned.
-  while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
-          && blocking.retval < (ssize_t) 0) {
+  while (rb_thread_call_without_gvl2(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
+          && blocking.retval < 0) {
     if (errno == EINTR) {
+      rb_thread_check_ints();
       continue;
     }
 
@@ -271,9 +272,10 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed. 
   // We unlock the GVL waiting for the call so other threads (e.g. signal
   // handling) can continue to work.
-  while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
-          && blocking.retval < (int) 0) {
+  while (rb_thread_call_without_gvl2(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
+          && blocking.retval < 0) {
     if (errno == EINTR) {
+      rb_thread_check_ints();
       continue;
     }
 
@@ -318,7 +320,7 @@ sysvmq_initialize(VALUE self, VALUE key, VALUE buffer_size, VALUE flags)
   // for each message sent. This makes SysVMQ not thread-safe (requiring a
   // buffer for each thread), but is a reasonable trade-off for now for the
   // performance.
-  sysv->buffer_size = FIX2INT(buffer_size);
+  sysv->buffer_size = FIX2INT(buffer_size + 1);
   msgbuf_size = sysv->buffer_size * sizeof(char) + sizeof(long);
 
   // Note that this is a zero-length array, so we size the struct to size of the
