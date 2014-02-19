@@ -11,6 +11,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
+
+#define UNINITIALIZED_ERROR -2
 
 // This is the buffer passed to msg{rcv,snd,ctl}(2)
 typedef struct {
@@ -144,10 +147,12 @@ sysvmq_destroy(VALUE self)
 // This is used for passing values between the `maybe_blocking` function and the
 // Ruby function. There's definitely a better way.
 typedef struct {
+  ssize_t    error;
+  ssize_t    length;
+
   size_t     size;
   int        flags;
-  int        type;
-  size_t     msg_size; // TODO: typelol
+  long       type;
   sysvmq_t*  sysv;
 
   int        retval;
@@ -160,7 +165,10 @@ static void*
 sysvmq_maybe_blocking_receive(void *args)
 {
   sysvmq_blocking_call_t* arguments = (sysvmq_blocking_call_t*) args;
-  arguments->retval = msgrcv(arguments->sysv->id, arguments->sysv->msgbuf, arguments->sysv->buffer_size, arguments->type, arguments->flags);
+  arguments->error = msgrcv(arguments->sysv->id, arguments->sysv->msgbuf, arguments->sysv->buffer_size, arguments->type, arguments->flags);
+
+  if (arguments->error >= 0)
+    arguments->length = arguments->error;
 
   return NULL;
 }
@@ -191,26 +199,34 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
 
   // Attach blocking call parameters to the struct passed to the blocking
   // function wrapper.
-  blocking.flags = FIX2INT(flags);
-  blocking.type  = FIX2INT(type);
-  blocking.sysv  = sysv;
+  blocking.flags  = FIX2INT(flags);
+  blocking.type   = FIX2LONG(type);
+  blocking.sysv   = sysv;
+  // Initialize error so it's never a garbage value, if
+  // `sysvmq_maybe_blocking_receive` was interrupted at a non-nice time.
+  blocking.error  = UNINITIALIZED_ERROR;
+  blocking.length = UNINITIALIZED_ERROR;
 
   // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed. 
   // We unlock the GVL waiting for the call so other threads (e.g. signal
-  // handling) can continue to work. Sets `msg_size` on `blocking` with the size
+  // handling) can continue to work. Sets `length` on `blocking` with the size
   // of the message returned.
-  while (rb_thread_call_without_gvl2(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
-          && blocking.retval < 0) {
-    if (errno == EINTR) {
-      rb_thread_check_ints();
+  //
+  // TODO: If IPC_NOWAIT is passed, don't bother unlocking the GVL.
+  while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
+          && blocking.error < 0) {
+    if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
       continue;
     }
 
     rb_sys_fail("Failed receiving message from queue");
   }
 
+  // Guard it..
+  assert(blocking.length != UNINITIALIZED_ERROR);
+
   // Reencode with default external encoding
-  return rb_enc_str_new(sysv->msgbuf->mtext, blocking.retval, rb_default_external_encoding());
+  return rb_enc_str_new(sysv->msgbuf->mtext, blocking.length, rb_default_external_encoding());
 }
 
 // Blocking call to msgsnd(2) (see sysvmq_send). This is to be called without
@@ -219,8 +235,7 @@ static void*
 sysvmq_maybe_blocking_send(void *data)
 {
   sysvmq_blocking_call_t* arguments = (sysvmq_blocking_call_t*) data;
-
-  arguments->retval = msgsnd(arguments->sysv->id, arguments->sysv->msgbuf, arguments->size, arguments->flags);
+  arguments->error = msgsnd(arguments->sysv->id, arguments->sysv->msgbuf, arguments->size, arguments->flags);
 
   return NULL;
 }
@@ -257,6 +272,9 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   blocking.flags = FIX2INT(flags);
   blocking.size  = RSTRING_LEN(message);
   blocking.sysv  = sysv;
+  // See msgrcv(2) wrapper
+  blocking.error  = UNINITIALIZED_ERROR;
+  blocking.length = UNINITIALIZED_ERROR;
 
   // The buffer can be obtained from `sysvmq_maybe_blocking_send`, instead of
   // passing it, set it directly on the instance struct.
@@ -272,10 +290,9 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed. 
   // We unlock the GVL waiting for the call so other threads (e.g. signal
   // handling) can continue to work.
-  while (rb_thread_call_without_gvl2(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
-          && blocking.retval < 0) {
-    if (errno == EINTR) {
-      rb_thread_check_ints();
+  while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
+          && blocking.error < 0) {
+    if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
       continue;
     }
 
@@ -320,7 +337,7 @@ sysvmq_initialize(VALUE self, VALUE key, VALUE buffer_size, VALUE flags)
   // for each message sent. This makes SysVMQ not thread-safe (requiring a
   // buffer for each thread), but is a reasonable trade-off for now for the
   // performance.
-  sysv->buffer_size = FIX2INT(buffer_size + 1);
+  sysv->buffer_size = (size_t) FIX2LONG(buffer_size + 1);
   msgbuf_size = sysv->buffer_size * sizeof(char) + sizeof(long);
 
   // Note that this is a zero-length array, so we size the struct to size of the
