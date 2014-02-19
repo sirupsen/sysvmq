@@ -147,12 +147,12 @@ sysvmq_destroy(VALUE self)
 // This is used for passing values between the `maybe_blocking` function and the
 // Ruby function. There's definitely a better way.
 typedef struct {
-  int        error;
+  ssize_t    error;
   ssize_t    length;
 
   size_t     size;
   int        flags;
-  int        type;
+  long       type;
   sysvmq_t*  sysv;
 
   int        retval;
@@ -200,7 +200,7 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
   // Attach blocking call parameters to the struct passed to the blocking
   // function wrapper.
   blocking.flags  = FIX2INT(flags);
-  blocking.type   = FIX2INT(type);
+  blocking.type   = FIX2LONG(type);
   blocking.sysv   = sysv;
   // Initialize error so it's never a garbage value, if
   // `sysvmq_maybe_blocking_receive` was interrupted at a non-nice time.
