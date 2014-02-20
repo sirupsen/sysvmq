@@ -1,0 +1,6 @@
+#!/bin/bash -ex
+bundle install
+
+if [[ $1 == "final" ]]; then
+  bundle exec rake compile
+fi
