@@ -1,4 +1,6 @@
-#!/bin/bash -ex
+#!/bin/bash
+set -ex
+
 bundle install
 
 if [[ $1 == "final" ]]; then
