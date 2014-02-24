@@ -220,8 +220,6 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
     // We unlock the GVL waiting for the call so other threads (e.g. signal
     // handling) can continue to work. Sets `length` on `blocking` with the size
     // of the message returned.
-    //
-    // TODO: If IPC_NOWAIT is passed, don't bother unlocking the GVL.
     while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
             && blocking.error < 0) {
       if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
