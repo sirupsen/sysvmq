@@ -322,12 +322,10 @@ sysvmq_initialize(VALUE self, VALUE key, VALUE buffer_size, VALUE flags)
 
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
-  // On Linux key_t is defined as an int, but on OS X (and probably BSD) it's
-  // defined as an unsigned int. The point is that key_t is a 32-bit value, and
-  // Linux doesn't really care for the sign bit. Ruby's FIX2INT will complain
-  // however, if the key doesn't fit in a 31 bit signed integer. The solution is
-  // to use UINT so Ruby doesn't complain, and then cast it back to key_t
-  // (unsigned int or int depending on platform) to satisfy the compiler.
+  // (key_t) is a 32-bit integer (int). It's defined as `int` (at least on OS X
+  // and Linux). However, `FIX2INT()` (from Ruby) will complain if the key is
+  // something in the range 2^31-2^32, because of the sign bit. We use UINT to
+  // trick Ruby, so it won't complain.
   sysv->key = (key_t) FIX2UINT(key);
 
   while ((sysv->id = msgget(sysv->key, FIX2INT(flags))) < 0) {
