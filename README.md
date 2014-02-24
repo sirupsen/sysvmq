@@ -42,4 +42,3 @@ mq.destroy
   instead of ORing flags directly.
 * Add `IPC_INFO` on Linux
 * Add all of `IPC_STAT`
-* OS X compatibility
