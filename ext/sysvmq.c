@@ -19,7 +19,7 @@
 typedef struct {
   long mtype;
   char mtext[];
-} 
+}
 sysvmq_msgbuf_t;
 
 // Used for rb_thread_wait_for to signal time between EINTR tries
@@ -84,7 +84,7 @@ sysvmq_alloc(VALUE klass)
 //
 // Controls the queue with IPC_SET, IPC_INFO and IPC_RMID via msgctl(2). When no
 // argument is passed, it'll return the information about the queue from
-// IPC_INFO. 
+// IPC_INFO.
 //
 // TODO: IPC_SET is currently not supported.
 static VALUE
@@ -121,7 +121,7 @@ sysvmq_stats(int argc, VALUE *argv, VALUE self)
   // TODO: They are probably not ints..
   info_hash = rb_hash_new();
   rb_hash_aset(info_hash, ID2SYM(rb_intern("count")),         INT2FIX(info.msg_qnum));
-  rb_hash_aset(info_hash, ID2SYM(rb_intern("maximum_size")), INT2FIX(info.msg_qbytes)); 
+  rb_hash_aset(info_hash, ID2SYM(rb_intern("maximum_size")), INT2FIX(info.msg_qbytes));
 
   // TODO: Can probably make a better checker here for whether the struct
   // actually has the member.
@@ -156,7 +156,7 @@ typedef struct {
   sysvmq_t*  sysv;
 
   int        retval;
-} 
+}
 sysvmq_blocking_call_t;
 
 // Blocking call to msgsnd(2) (see sysvmq_send). This is to be called without
@@ -207,7 +207,7 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
   blocking.error  = UNINITIALIZED_ERROR;
   blocking.length = UNINITIALIZED_ERROR;
 
-  // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed. 
+  // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed.
   // We unlock the GVL waiting for the call so other threads (e.g. signal
   // handling) can continue to work. Sets `length` on `blocking` with the size
   // of the message returned.
@@ -287,7 +287,7 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   // TODO: Can a string copy be avoided?
   strncpy(sysv->msgbuf->mtext, StringValueCStr(message), blocking.size);
 
-  // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed. 
+  // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed.
   // We unlock the GVL waiting for the call so other threads (e.g. signal
   // handling) can continue to work.
   while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
@@ -322,8 +322,11 @@ sysvmq_initialize(VALUE self, VALUE key, VALUE buffer_size, VALUE flags)
 
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
-  // TODO: This probably doesn't hold on all platforms.
-  sysv->key = FIX2LONG(key);
+  // (key_t) is a 32-bit integer (int). It's defined as `int` (at least on OS X
+  // and Linux). However, `FIX2INT()` (from Ruby) will complain if the key is
+  // something in the range 2^31-2^32, because of the sign bit. We use UINT to
+  // trick Ruby, so it won't complain.
+  sysv->key = (key_t) FIX2UINT(key);
 
   while ((sysv->id = msgget(sysv->key, FIX2INT(flags))) < 0) {
     if (errno == EINTR) {
@@ -363,7 +366,9 @@ void Init_sysvmq()
   rb_define_const(sysvmq, "IPC_RMID",   INT2NUM(IPC_RMID));
   rb_define_const(sysvmq, "IPC_SET",    INT2NUM(IPC_SET));
   rb_define_const(sysvmq, "IPC_STAT",   INT2NUM(IPC_STAT));
+#ifdef __linux__
   rb_define_const(sysvmq, "IPC_INFO",   INT2NUM(IPC_INFO));
+#endif
 
   // Define the SysVMQ class and its methods
   rb_define_alloc_func(sysvmq, sysvmq_alloc);
