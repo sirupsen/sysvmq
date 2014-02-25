@@ -111,4 +111,10 @@ class SysVMQTest < MiniTest::Unit::TestCase
     sleep 0.01
     thread.kill
   end
+
+  def test_nonblocking_send_and_receive
+    message = "Hello World"
+    @mq.send(message, 1, SysVMQ::IPC_NOWAIT)
+    assert_equal message, @mq.receive(0, SysVMQ::IPC_NOWAIT)
+  end
 end

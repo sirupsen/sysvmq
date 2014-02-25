@@ -207,19 +207,27 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
   blocking.error  = UNINITIALIZED_ERROR;
   blocking.length = UNINITIALIZED_ERROR;
 
-  // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed.
-  // We unlock the GVL waiting for the call so other threads (e.g. signal
-  // handling) can continue to work. Sets `length` on `blocking` with the size
-  // of the message returned.
-  //
-  // TODO: If IPC_NOWAIT is passed, don't bother unlocking the GVL.
-  while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
-          && blocking.error < 0) {
-    if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
-      continue;
-    }
+  if ((blocking.flags & IPC_NOWAIT) == IPC_NOWAIT) {
+    while(sysvmq_maybe_blocking_receive(&blocking) == NULL && blocking.error < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
 
-    rb_sys_fail("Failed receiving message from queue");
+      rb_sys_fail("Failed recieving message from queue");
+    }
+  } else {
+    // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed. 
+    // We unlock the GVL waiting for the call so other threads (e.g. signal
+    // handling) can continue to work. Sets `length` on `blocking` with the size
+    // of the message returned.
+    while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
+            && blocking.error < 0) {
+      if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
+        continue;
+      }
+
+      rb_sys_fail("Failed receiving message from queue");
+    }
   }
 
   // Guard it..
@@ -287,16 +295,27 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   // TODO: Can a string copy be avoided?
   strncpy(sysv->msgbuf->mtext, StringValueCStr(message), blocking.size);
 
-  // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed.
-  // We unlock the GVL waiting for the call so other threads (e.g. signal
-  // handling) can continue to work.
-  while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
-          && blocking.error < 0) {
-    if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
-      continue;
-    }
+  // Non-blocking call, skip the expensive GVL release/acquire
+  if ((blocking.flags & IPC_NOWAIT) == IPC_NOWAIT) {
+    while(sysvmq_maybe_blocking_send(&blocking) == NULL && blocking.error < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
 
-    rb_sys_fail("Failed sending message to queue");
+      rb_sys_fail("Failed sending message to queue");
+    }
+  } else {
+    // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed. 
+    // We unlock the GVL waiting for the call so other threads (e.g. signal
+    // handling) can continue to work.
+    while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
+            && blocking.error < 0) {
+      if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
+        continue;
+      }
+
+      rb_sys_fail("Failed sending message to queue");
+    }
   }
 
   return message;
