@@ -1,4 +1,4 @@
-# sysvmq
+# sysvmq [![Build Status](https://travis-ci.org/Sirupsen/sysvmq.png?branch=v0.1.0)](https://travis-ci.org/Sirupsen/sysvmq)
 
 `sysvmq` is a C extension that wraps SysV IPC Message Queues. It's similar to
 the [POSIX MQ Ruby wrapper](https://github.com/Sirupsen/posix-mqueue). Message
