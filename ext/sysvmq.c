@@ -74,7 +74,7 @@ sysvmq_alloc(VALUE klass)
   sysv->key         = 0;
   sysv->id          = -1;
   sysv->buffer_size = 0;
-  sysv->msgbuf      = memset(sysv, 0, sizeof(sysvmq_t));
+  sysv->msgbuf      = NULL;
 
   return obj;
 }
@@ -216,7 +216,7 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
       rb_sys_fail("Failed recieving message from queue");
     }
   } else {
-    // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed. 
+    // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed.
     // We unlock the GVL waiting for the call so other threads (e.g. signal
     // handling) can continue to work. Sets `length` on `blocking` with the size
     // of the message returned.
@@ -305,7 +305,7 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
       rb_sys_fail("Failed sending message to queue");
     }
   } else {
-    // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed. 
+    // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed.
     // We unlock the GVL waiting for the call so other threads (e.g. signal
     // handling) can continue to work.
     while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL

@@ -89,7 +89,7 @@ class SysVMQTest < MiniTest::Unit::TestCase
   end
 
   def test_responds_to_sigint
-    pid = fork { 
+    pid = fork {
       begin
         mq = SysVMQ.new(0xDEADCAFE, 2048, SysVMQ::IPC_CREAT | 0660)
         mq.receive
@@ -116,5 +116,11 @@ class SysVMQTest < MiniTest::Unit::TestCase
     message = "Hello World"
     @mq.send(message, 1, SysVMQ::IPC_NOWAIT)
     assert_equal message, @mq.receive(0, SysVMQ::IPC_NOWAIT)
+  end
+
+  def test_string_key_and_gc
+    assert_raises TypeError do
+      SysVMQ.new("0xDEADC0DE", @size, SysVMQ::IPC_CREAT | 0666)
+    end
   end
 end
