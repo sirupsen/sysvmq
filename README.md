@@ -7,13 +7,16 @@ take down either endpoint easily. The main disadvantage of SysV message queues
 over POSIX MQs (on Linux) is that SysV doesn't expose a file descriptor to do
 e.g. `select(2)` on.
 
+Note that `sysvmq` doesn't rely on any third-party message broker. The message
+queue is handled by the kernel. It's extremely stable and performant.
+
 ## Installation
 
 Add `sysvm` to your Gemfile.
 
 `gem 'sysvmq'`
 
-Currently known to work on Linux (MRI >= 2.0).
+Currently known to work on Linux and OS X for MRI >= 2.0.
 
 ## Usage
 
