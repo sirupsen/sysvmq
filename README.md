@@ -6,7 +6,8 @@ Message queues are handy for interprocess communication where you want to be
 able to take down either endpoint easily. For example, a pipe or socket requires
 you to implement handover logic in both applications. The main disadvantage of
 SysV message queues over POSIX MQs (on Linux) is that SysV doesn't expose a file
-descriptor to do e.g. `select(2)` on.
+descriptor to do e.g. `select(2)` on. The advantage of SysV is that it's
+implemented on OS X, which POSIX MQs are not.
 
 Note that `sysvmq` doesn't rely on any third-party message broker. The message
 queue is handled by the kernel. It's extremely stable and performant.
