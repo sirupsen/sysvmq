@@ -30,7 +30,7 @@ mq = SysVMQ.new(0xDEADC0DE, 1024, SysVMQ::IPC_CREAT | 0666)
 mq.send "Hellø Wårld!"
 assert_equal 1, mq.stats[:count]
 
-assert_equal "Hellø Wårld!", mq.receive
+assert_equal "Hellø Wårld!", mq.receive.force_encoding("UTF-8")
 
 # Raise an exception instead of blocking until a message is available
 mq.receive(0, SysVMQ::IPC_NOWAIT)
