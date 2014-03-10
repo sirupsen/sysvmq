@@ -40,7 +40,7 @@ class SysVMQTest < MiniTest::Unit::TestCase
   def test_sends_and_receives_utf8
     message = "simån hørup"
     @mq.send message
-    assert_equal message, @mq.receive
+    assert_equal message, @mq.receive.force_encoding("UTF-8")
   end
 
   def test_sending_5_bytes_should_report_5_byte_queue
@@ -122,5 +122,11 @@ class SysVMQTest < MiniTest::Unit::TestCase
     assert_raises TypeError do
       SysVMQ.new("0xDEADC0DE", @size, SysVMQ::IPC_CREAT | 0666)
     end
+  end
+
+  def test_null_bytes
+    message = "\x00omg\x00omg"
+    @mq.send(message)
+    assert_equal message, @mq.receive
   end
 end

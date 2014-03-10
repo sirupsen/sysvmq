@@ -234,7 +234,8 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
   assert(blocking.length != UNINITIALIZED_ERROR);
 
   // Reencode with default external encoding
-  return rb_enc_str_new(sysv->msgbuf->mtext, blocking.length, rb_default_external_encoding());
+  VALUE ret = rb_str_new(sysv->msgbuf->mtext, blocking.length);
+  return ret;
 }
 
 // Blocking call to msgsnd(2) (see sysvmq_send). This is to be called without
@@ -293,7 +294,7 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   }
 
   // TODO: Can a string copy be avoided?
-  strncpy(sysv->msgbuf->mtext, StringValueCStr(message), blocking.size);
+  memcpy(sysv->msgbuf->mtext, RSTRING_PTR(message), blocking.size);
 
   // Non-blocking call, skip the expensive GVL release/acquire
   if ((blocking.flags & IPC_NOWAIT) == IPC_NOWAIT) {

@@ -4,7 +4,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 
 Gem::Specification.new do |spec|
   spec.name          = "sysvmq"
-  spec.version       = '0.1.1'
+  spec.version       = '0.2.0'
   spec.authors       = ["Simon Eskildsen"]
   spec.email         = ["sirup@sirupsen.com"]
   spec.summary       = %q{Ruby wrapper for SysV Message Queues}
