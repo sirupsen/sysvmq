@@ -234,8 +234,7 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
   assert(blocking.length != UNINITIALIZED_ERROR);
 
   // Reencode with default external encoding
-  VALUE ret = rb_str_new(sysv->msgbuf->mtext, blocking.length);
-  return ret;
+  return rb_str_new(sysv->msgbuf->mtext, blocking.length);
 }
 
 // Blocking call to msgsnd(2) (see sysvmq_send). This is to be called without
