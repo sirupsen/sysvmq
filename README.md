@@ -40,6 +40,27 @@ ensure
 mq.destroy
 ```
 
+## Proc settings
+
+System V queues are limited by default to a maximum of 16 message queues, a maximum of 8KB per message, and a maximum of 16KB for the total size of all messages in a queue.
+
+To increase (or decrease) these limits, either run:
+
+```sh
+sysctl -w kernel.msgmni=32
+sysctl -w kernel.msgmax=1000000
+sysctl -w kernel.msgmnb=2000000
+```
+
+or write to /etc/sysctl.conf:
+
+```sh
+echo 'kernel.msgmni=32' >> /etc/sysctl.conf
+echo 'kernel.msgmax=1000000' >> /etc/sysctl.conf
+echo 'kernel.msgmnb=2000000' >> /etc/sysctl.conf
+sysctl -p
+```
+
 ## Todo
 
 * Explain messages types
