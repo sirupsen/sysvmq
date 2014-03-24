@@ -1,6 +1,5 @@
 #include <ruby.h>
 #include <ruby/util.h>
-#include <ruby/thread.h>
 #include <ruby/io.h>
 
 #include <sys/types.h>
@@ -14,6 +13,20 @@
 #include <assert.h>
 
 #define UNINITIALIZED_ERROR -2
+
+#if defined(HAVE_RB_THREAD_CALL_WITHOUT_GVL) && defined(HAVE_RUBY_THREAD_H)
+// 2.0
+#include <ruby/thread.h>
+#define WITHOUT_GVL(fn,a,ubf,b) \
+        rb_thread_call_without_gvl((fn),(a),(ubf),(b))
+
+#elif defined(HAVE_RB_THREAD_BLOCKING_REGION)
+// 1.9
+typedef VALUE (*my_blocking_fn_t)(void*);
+#define WITHOUT_GVL(fn,a,ubf,b) \
+        rb_thread_blocking_region((my_blocking_fn_t)(fn),(a),(ubf),(b))
+
+#endif
 
 // This is the buffer passed to msg{rcv,snd,ctl}(2)
 typedef struct {
@@ -220,7 +233,7 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
     // We unlock the GVL waiting for the call so other threads (e.g. signal
     // handling) can continue to work. Sets `length` on `blocking` with the size
     // of the message returned.
-    while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
+    while (WITHOUT_GVL(sysvmq_maybe_blocking_receive, &blocking, RUBY_UBF_IO, NULL) == NULL
             && blocking.error < 0) {
       if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
         continue;
@@ -308,7 +321,7 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
     // msgsnd(2) can block waiting for a message, if IPC_NOWAIT is not passed.
     // We unlock the GVL waiting for the call so other threads (e.g. signal
     // handling) can continue to work.
-    while (rb_thread_call_without_gvl(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
+    while (WITHOUT_GVL(sysvmq_maybe_blocking_send, &blocking, RUBY_UBF_IO, NULL) == NULL
             && blocking.error < 0) {
       if (errno == EINTR || blocking.error == UNINITIALIZED_ERROR) {
         continue;
