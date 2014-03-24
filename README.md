@@ -18,7 +18,7 @@ Add `sysvm` to your Gemfile.
 
 `gem 'sysvmq'`
 
-Currently known to work on Linux and OS X for MRI >= 2.0.
+Currently known to work on Linux and OS X for MRI >= 1.9
 
 ## Usage
 
