@@ -1,3 +1,4 @@
+#coding: utf-8
 require_relative 'test_helper'
 
 class SysVMQTest < MiniTest::Unit::TestCase
@@ -52,7 +53,7 @@ class SysVMQTest < MiniTest::Unit::TestCase
   def test_sending_utf_should_report_correct_size_queue
     message = "ø" * 5
     @mq.send message
-    assert_equal "ø".bytes.size * 5, @mq.stats[:size]
+    assert_equal "ø".bytes.to_a.size * 5, @mq.stats[:size]
   end
 
   def test_receive_on_empty_queue_raises_enomsg_if_ipc_nowait
