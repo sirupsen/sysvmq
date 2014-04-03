@@ -12,6 +12,9 @@ implemented on OS X, which POSIX MQs are not.
 Note that `sysvmq` doesn't rely on any third-party message broker. The message
 queue is handled by the kernel. It's extremely stable and performant.
 
+`sysvmq` has been tested heavily in production at Shopify, under more than `100k
+RPM`.
+
 ## Installation
 
 Add `sysvm` to your Gemfile.
