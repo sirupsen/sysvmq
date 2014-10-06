@@ -17,7 +17,7 @@ RPM`.
 
 ## Installation
 
-Add `sysvm` to your Gemfile.
+Add `sysvmq` to your Gemfile.
 
 `gem 'sysvmq'`
 
