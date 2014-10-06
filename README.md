@@ -43,6 +43,17 @@ ensure
 mq.destroy
 ```
 
+Messages are always cast to strings.
+```ruby
+mq = SysVMQ.new(0xDEADC0DE, 1024, SysVMQ::IPC_CREAT | 0666)
+
+mq.send 1
+assert_equal "1", mq.receive
+
+mq.send :symbol
+assert_equal "symbol", mq.receive
+```
+
 ## Proc settings
 
 System V queues are limited by default to a maximum of 16 message queues, a maximum of 8KB per message, and a maximum of 16KB for the total size of all messages in a queue.
