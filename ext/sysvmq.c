@@ -282,6 +282,8 @@ sysvmq_send(int argc, VALUE *argv, VALUE self)
   if (argc >= 2) priority = argv[1];
   if (argc == 3) flags    = argv[2];
 
+  message = rb_funcall(message, rb_intern("to_s"), 0);
+
   TypedData_Get_Struct(self, sysvmq_t, &sysvmq_type, sysv);
 
   Check_Type(flags,    T_FIXNUM);

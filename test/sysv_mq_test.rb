@@ -130,4 +130,18 @@ class SysVMQTest < MiniTest::Unit::TestCase
     @mq.send(message)
     assert_equal message, @mq.receive
   end
+
+  def test_number_converted_to_string
+    message = 1
+    @mq.send(message)
+    assert_equal "1", @mq.receive
+  end
+
+  class Walrus; def to_s; "walrus"; end; end
+
+  def test_object_converted_to_string
+    message = Walrus.new
+    @mq.send(message)
+    assert_equal "walrus", @mq.receive
+  end
 end
