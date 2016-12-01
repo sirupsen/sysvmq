@@ -226,7 +226,7 @@ sysvmq_receive(int argc, VALUE *argv, VALUE self)
         continue;
       }
 
-      rb_sys_fail("Failed recieving message from queue");
+      rb_sys_fail("Failed receiving message from queue");
     }
   } else {
     // msgrcv(2) can block sending a message, if IPC_NOWAIT is not passed.
