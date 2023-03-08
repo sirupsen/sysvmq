@@ -14,19 +14,9 @@
 
 #define UNINITIALIZED_ERROR -2
 
-#if defined(HAVE_RB_THREAD_CALL_WITHOUT_GVL) && defined(HAVE_RUBY_THREAD_H)
-// 2.0
 #include <ruby/thread.h>
 #define WITHOUT_GVL(fn,a,ubf,b) \
         rb_thread_call_without_gvl((fn),(a),(ubf),(b))
-
-#elif defined(HAVE_RB_THREAD_BLOCKING_REGION)
-// 1.9
-typedef VALUE (*my_blocking_fn_t)(void*);
-#define WITHOUT_GVL(fn,a,ubf,b) \
-        rb_thread_blocking_region((my_blocking_fn_t)(fn),(a),(ubf),(b))
-
-#endif
 
 // This is the buffer passed to msg{rcv,snd,ctl}(2)
 typedef struct {
@@ -48,12 +38,6 @@ typedef struct {
 sysvmq_t;
 
 static void
-sysvmq_mark(void *ptr)
-{
-  // noop, no Ruby objects in the internal struct currently
-}
-
-static void
 sysvmq_free(void *ptr)
 {
   sysvmq_t* sysv = ptr;
@@ -70,12 +54,13 @@ sysvmq_memsize(const void* ptr)
 
 static const rb_data_type_t
 sysvmq_type = {
-  "sysvmq_type",
-  {
-    sysvmq_mark,
-    sysvmq_free,
-    sysvmq_memsize
-  }
+  .wrap_struct_name = "sysvmq_type",
+  .function = {
+    .dmark = NULL, // no Ruby objects in the internal struct currently
+    .dfree = sysvmq_free,
+    .dsize = sysvmq_memsize,
+  },
+  .flags = RUBY_TYPED_FREE_IMMEDIATELY | RUBY_TYPED_WB_PROTECTED
 };
 
 static VALUE
