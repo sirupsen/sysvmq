@@ -1,7 +1,7 @@
 #coding: utf-8
 require_relative 'test_helper'
 
-class SysVMQTest < MiniTest::Unit::TestCase
+class SysVMQTest < MiniTest::Test
   def setup
     @size = 1024
     @mq = SysVMQ.new(0xDEADC0DE, @size, SysVMQ::IPC_CREAT | 0666)
