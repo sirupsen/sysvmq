@@ -359,7 +359,7 @@ sysvmq_initialize(VALUE self, VALUE key, VALUE buffer_size, VALUE flags)
   // for each message sent. This makes SysVMQ not thread-safe (requiring a
   // buffer for each thread), but is a reasonable trade-off for now for the
   // performance.
-  sysv->buffer_size = (size_t) FIX2LONG(buffer_size + 1);
+  sysv->buffer_size = (size_t) FIX2LONG(buffer_size) + 1;
   msgbuf_size = sysv->buffer_size * sizeof(char) + sizeof(long);
 
   // Note that this is a zero-length array, so we size the struct to size of the
